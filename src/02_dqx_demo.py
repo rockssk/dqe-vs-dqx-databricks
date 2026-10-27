@@ -10,7 +10,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install -q databricks-labs-dqx
+# MAGIC %pip install -q databricks-labs-dqx==0.17.0
 # MAGIC %restart_python
 
 # COMMAND ----------
@@ -66,7 +66,8 @@ print(yaml.safe_dump(generated[:8], sort_keys=False))
 
 for t in TABLES:
     with open(f"{RULES_DIR}/{t}.yml") as fh:
-        checks = yaml.safe_load(fh)
+        # Rules reference tables as {{source_schema}}.<table>, resolved here so the stored rules are fully qualified
+        checks = yaml.safe_load(fh.read().replace("{{source_schema}}", FQ))
     assert not DQEngine.validate_checks(checks).has_errors, f"invalid checks for {t}"
     dq_engine.save_checks(checks, TableChecksStorageConfig(location=CHECKS_TABLE, run_config_name=t, mode="overwrite"))
 
@@ -78,7 +79,6 @@ display(spark.table(CHECKS_TABLE))
 
 # COMMAND ----------
 
-ref_dfs = {"contacts": spark.table(f"{FQ}.bronze_contacts")}
 timings = []
 
 for t in TABLES:
@@ -86,7 +86,7 @@ for t in TABLES:
     df = spark.table(f"{FQ}.bronze_{t}")
 
     start = time.time()
-    annotated = dq_engine.apply_checks_by_metadata(df, checks, ref_dfs=ref_dfs)
+    annotated = dq_engine.apply_checks_by_metadata(df, checks)
     annotated.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(f"{FQ}.dqx_annotated_{t}")
     timings.append((t, df.count(), len(checks), round(time.time() - start, 1)))
 

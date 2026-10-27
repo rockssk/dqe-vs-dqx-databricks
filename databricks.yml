@@ -51,7 +51,7 @@ resources:
       development: true
       environment:
         dependencies:
-          - databricks-labs-dqx
+          - databricks-labs-dqx==0.17.0
       libraries:
         - file:
             path: ./src/dqx_in_sdp/dqx_sdp_pipeline.py

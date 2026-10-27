@@ -1,4 +1,5 @@
 # DQX checks for contacts. Names reuse the DQE rule ids so the assessment can compare them 1:1.
+# "{{source_schema}}" in any rule is replaced with the target catalog.schema when the rules are saved.
 - name: R0_no_rescued_data
   criticality: error
   check: {function: is_null, arguments: {column: _rescued_data}}

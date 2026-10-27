@@ -99,28 +99,30 @@ Both support streaming. DQE expectations work on streaming tables natively. DQX 
 Yes, and the demo includes a working pipeline that does it (`dqx-in-sdp-demo`). The recommended shape:
 
 1. **Load the rules from the same Delta checks table** the batch DQX job uses, so there is one rule set.
-2. **Row-level checks go on the stream.** DQX adds `_errors` / `_warnings` to every row in a temporary view.
-3. **Silver** reads the view and has one DQE expectation, "no DQX errors", with drop. DQX decides; DQE records pass/fail counts in the event log and pipeline UI. Rows with only warnings are kept, with the reasons attached.
-4. **Quarantine** reads the same view and keeps rows with `_errors`, so each bad row carries its rule name and message.
-5. **Dataset-level checks** (`is_unique`, `foreign_key`, `sql_query`, aggregates) need the whole table rather than one micro-batch, so they run in a **materialized view** over a batch read.
+2. **Split the rules using DQX's own rule types.** `deserialize_checks` returns `DQRowRule` or `DQDatasetRule` objects, so you don't have to maintain a list of which functions are dataset-level.
+3. **Row-level checks go on the stream**, written once to a **private streaming table** (internal to the pipeline, not published to the catalog). DQX adds `_errors` / `_warnings` to every row.
+4. **Silver** reads the private table and has one DQE expectation, "no DQX errors", with drop. DQX decides; DQE records pass/fail counts in the event log and pipeline UI. Rows with only warnings are kept, with the reasons attached.
+5. **Quarantine** reads the same private table and keeps rows with `_errors`, so each bad row carries its rule name and message.
+6. **Dataset-level checks** (`is_unique`, `foreign_key`, `sql_query`, aggregates) need the whole table rather than one micro-batch, so they run in a **materialized view** over a batch read.
 
 ```python
+from databricks.labs.dqx.checks_serializer import deserialize_checks
 from databricks.labs.dqx.config import TableChecksStorageConfig
 from databricks.labs.dqx.engine import DQEngine
+from databricks.labs.dqx.rule import DQDatasetRule, DQRowRule
 from databricks.sdk import WorkspaceClient
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 
 dq_engine = DQEngine(WorkspaceClient())
-DATASET_FUNCTIONS = {"is_unique", "foreign_key", "sql_query", "compare_datasets", "is_aggr_not_greater_than"}  # ...
+stored = dq_engine.load_checks(TableChecksStorageConfig(location="main.sales_dq.dqx_checks", run_config_name="activities"))
+rules = deserialize_checks(stored)
+row_checks = [r for r in rules if isinstance(r, DQRowRule)]
+dataset_checks = [r for r in rules if isinstance(r, DQDatasetRule)]
 
-checks = dq_engine.load_checks(TableChecksStorageConfig(location="main.fas_dq.dqx_checks", run_config_name="activities"))
-row_checks = [c for c in checks if c["check"]["function"] not in DATASET_FUNCTIONS]
-dataset_checks = [c for c in checks if c["check"]["function"] in DATASET_FUNCTIONS]
-
-@dp.temporary_view(name="activities_checked")
+@dp.table(name="activities_checked", private=True)                 # row checks run once, results persisted
 def activities_checked():
-    return dq_engine.apply_checks_by_metadata(spark.readStream.table("main.sales.bronze_activities"), row_checks)
+    return dq_engine.apply_checks(spark.readStream.table("main.sales.bronze_activities"), row_checks)
 
 @dp.table(name="silver_activities")
 @dp.expect_or_drop("dqx_no_errors", "_dqx_error_count = 0")      # DQX decides, DQE records the counts
@@ -135,16 +137,29 @@ def quarantine_activities():
 
 @dp.materialized_view(name="dq_dataset_activities")                 # uniqueness / FK over the whole table
 def dq_dataset_activities():
-    ref = {"contacts": spark.read.table("main.sales.bronze_contacts")}
-    out = dq_engine.apply_checks_by_metadata(spark.read.table("main.sales.bronze_activities"), dataset_checks, ref_dfs=ref)
+    out = dq_engine.apply_checks(spark.read.table("main.sales.bronze_activities"), dataset_checks)
     return out.where("_errors IS NOT NULL OR _warnings IS NOT NULL")
 ```
 
-Install DQX on the pipeline through its environment (in a bundle: `environment: {dependencies: [databricks-labs-dqx]}` on a serverless pipeline).
+Foreign-key rules name their reference table in the rule itself, so no DataFrame wiring is needed in the pipeline:
 
-Two details that matter:
-- Compute the error count with `when(_errors IS NULL, 0)`, not `coalesce(size(_errors), 0)`. Depending on settings, Spark's `size(NULL)` can return `-1`, and the expectation would then drop every clean row.
-- Every flow re-applies the row checks to the view. They are cheap Spark expressions, but if you have many checks on a wide stream, make the checked dataset a private streaming table instead of a view.
+```yaml
+- name: activity_contact_exists
+  criticality: error
+  check:
+    function: foreign_key
+    arguments: {columns: [contact_guid], ref_columns: [contact_guid], ref_table: main.sales.bronze_contacts}
+```
+
+**Install:** pin DQX on the pipeline's environment. In a bundle: `environment: {dependencies: [databricks-labs-dqx==0.17.0]}` on a serverless pipeline. Without a pin, a new DQX release can change the structure of `_errors` / `_warnings` and so the schema of streaming tables that are already running.
+
+**Things to know before production**
+- **Count errors with `when(_errors IS NULL, 0)`**, not `coalesce(size(_errors), 0)`. Depending on settings, Spark's `size(NULL)` can return `-1`, and the expectation would then drop every clean row.
+- **Rule changes take effect at the next update.** Rules are loaded when the pipeline graph is built. In continuous mode that means "after a restart". A missing or broken checks table fails the pipeline at start-up.
+- **Rows already processed are not re-checked.** Silver, quarantine and the private table are streaming tables, so a changed rule only applies to new rows. In particular, relaxing a rule does **not** release rows already in quarantine. That needs a full refresh, or a replay step that re-checks quarantine and merges the rows that now pass into silver.
+- **The dataset-level MV is recomputed in full on every update.** The demo's event log shows `MAINTENANCE_TYPE_COMPLETE_RECOMPUTE` with reason `QUERY_FINGERPRINT_CHANGED`: DQX puts a new run ID into the query plan each time, so the MV can never refresh incrementally. Its cost grows with the source table. At scale, run dataset-level checks as a scheduled DQX job, or limit the MV to a recent window.
+- **Dataset-level checks run on bronze, not silver.** Duplicate and FK counts include rows already quarantined for row-level reasons. That's usually what you want, since you see every problem, but decide it deliberately, especially for dashboard counts.
+- **There is no record of which rule version judged a row.** The checks table is overwritten in place. For audit, add a rule-set version (or the checks table's Delta version) to each rule's `user_metadata`; it is then copied into every `_errors` / `_warnings` entry.
 
 In the demo, the SDP version and the batch DQX job produced identical results: silver/quarantine 4,815/210 for contacts, 19,885/165 for activities and 10,370/45 for AUM. The expectation's event-log counts matched the quarantine tables exactly. DQX can also generate SDP expectations from profiles (`DQDltGenerator`), so a single profiling pass can feed both engines.
 

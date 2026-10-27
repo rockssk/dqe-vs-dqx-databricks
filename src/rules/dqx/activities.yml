@@ -28,4 +28,4 @@
   user_metadata: {dimension: Consistency, rule: "Activity contact exists in contacts"}
   check:
     function: foreign_key
-    arguments: {columns: [contact_guid], ref_columns: [contact_guid], ref_df_name: contacts}
+    arguments: {columns: [contact_guid], ref_columns: [contact_guid], ref_table: "{{source_schema}}.bronze_contacts"}
