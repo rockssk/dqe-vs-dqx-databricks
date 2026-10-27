@@ -1,0 +1,4 @@
+- name: T1_file_within_12h
+  criticality: warn
+  user_metadata: {dimension: Timeliness, rule: "Source files landed within 12h"}
+  check: {function: is_data_fresh, arguments: {column: landed_at, max_age_minutes: 720}}

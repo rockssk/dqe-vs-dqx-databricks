@@ -1,0 +1,19 @@
+[
+  {"rule_id": "R0", "table": "contacts",   "name": "R0_no_rescued_data",          "action": "drop", "dimension": "Validity",     "constraint": "_rescued_data IS NULL"},
+  {"rule_id": "C1", "table": "contacts",   "name": "C1_contact_has_no_crd",       "action": "drop", "dimension": "Accuracy",     "constraint": "crd_number IS NULL"},
+  {"rule_id": "C2", "table": "contacts",   "name": "C2_valid_email",              "action": "drop", "dimension": "Validity",     "constraint": "coalesce(email RLIKE '^[^@\\\\s]+@[^@\\\\s]+\\\\.[a-z]{2,}$', false)"},
+  {"rule_id": "C4", "table": "contacts",   "name": "C4_vendor_contact_has_advisor_crd",   "action": "drop", "dimension": "Completeness", "constraint": "source <> 'VENDOR' OR advisor_crd IS NOT NULL"},
+  {"rule_id": "C5", "table": "contacts",   "name": "C5_company_guid_not_null",    "action": "drop", "dimension": "Completeness", "constraint": "company_guid IS NOT NULL"},
+  {"rule_id": "C6", "table": "contacts",   "name": "C6_third_party_guid_format",  "action": "drop", "dimension": "Validity",     "constraint": "coalesce(third_party_identifier_guid RLIKE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', false)"},
+
+  {"rule_id": "R0", "table": "activities", "name": "R0_no_rescued_data",          "action": "drop", "dimension": "Validity",     "constraint": "_rescued_data IS NULL"},
+  {"rule_id": "A2", "table": "activities", "name": "A2_detail_guid_not_null",     "action": "drop", "dimension": "Completeness", "constraint": "sales_activity_detail_guid IS NOT NULL"},
+  {"rule_id": "A3", "table": "activities", "name": "A3_party_guid_not_null",      "action": "drop", "dimension": "Completeness", "constraint": "sales_activity_party_guid IS NOT NULL"},
+  {"rule_id": "A4", "table": "activities", "name": "A4_valid_activity_date",      "action": "drop", "dimension": "Validity",     "constraint": "try_to_timestamp(sales_activity_date, 'yyyy-MM-dd HH:mm:ss') IS NOT NULL"},
+  {"rule_id": "A5", "table": "activities", "name": "A5_meeting_flag_accuracy",    "action": "warn", "dimension": "Accuracy",     "constraint": "activity_type <> 'appointment' OR mtg_flag = 'Y'"},
+  {"rule_id": "A6", "table": "activities", "name": "A6_contact_exists",           "action": "drop", "dimension": "Consistency",  "constraint": "_contact_exists"},
+
+  {"rule_id": "F1", "table": "aum",        "name": "F1_no_rescued_data",          "action": "drop", "dimension": "Validity",     "constraint": "_rescued_data IS NULL"},
+  {"rule_id": "F2", "table": "aum",        "name": "F2_advisor_id_not_null",      "action": "drop", "dimension": "Completeness", "constraint": "advisor_id IS NOT NULL"},
+  {"rule_id": "F0", "table": "aum",        "name": "F0_month_present",            "action": "fail", "dimension": "Completeness", "constraint": "month IS NOT NULL"}
+]

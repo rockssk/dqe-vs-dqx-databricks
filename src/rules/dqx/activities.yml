@@ -1,0 +1,31 @@
+- name: R0_no_rescued_data
+  criticality: error
+  check: {function: is_null, arguments: {column: _rescued_data}}
+- name: A1_credit_guid_unique
+  criticality: warn
+  user_metadata: {dimension: Uniqueness, rule: "One row per credited activity GUID"}
+  check: {function: is_unique, arguments: {columns: [sales_activity_credit_guid]}}
+- name: A2_detail_guid_not_null
+  criticality: error
+  user_metadata: {dimension: Completeness, rule: "Detail GUID is required"}
+  check: {function: is_not_null, arguments: {column: sales_activity_detail_guid}}
+- name: A3_party_guid_not_null
+  criticality: error
+  user_metadata: {dimension: Completeness, rule: "Party GUID is required"}
+  check: {function: is_not_null, arguments: {column: sales_activity_party_guid}}
+- name: A4_valid_activity_date
+  criticality: error
+  user_metadata: {dimension: Validity, rule: "Activity date is yyyy-MM-dd HH:mm:ss"}
+  check: {function: is_valid_timestamp, arguments: {column: sales_activity_date, timestamp_format: "yyyy-MM-dd HH:mm:ss"}}
+- name: A5_meeting_flag_accuracy
+  criticality: warn
+  user_metadata: {dimension: Accuracy, rule: "Appointments are flagged as meetings"}
+  check:
+    function: sql_expression
+    arguments: {expression: "activity_type <> 'appointment' OR mtg_flag = 'Y'", msg: "appointment not flagged as meeting"}
+- name: A6_contact_exists
+  criticality: error
+  user_metadata: {dimension: Consistency, rule: "Activity contact exists in contacts"}
+  check:
+    function: foreign_key
+    arguments: {columns: [contact_guid], ref_columns: [contact_guid], ref_df_name: contacts}

@@ -1,0 +1,32 @@
+# DQX checks for contacts. Names reuse the DQE rule ids so the assessment can compare them 1:1.
+- name: R0_no_rescued_data
+  criticality: error
+  check: {function: is_null, arguments: {column: _rescued_data}}
+- name: C1_contact_has_no_crd
+  criticality: error
+  user_metadata: {dimension: Accuracy, rule: "Contacts carry advisor_crd only; crd_number is for firms"}
+  check: {function: is_null, arguments: {column: crd_number}}
+- name: C2_valid_email
+  criticality: error
+  user_metadata: {dimension: Validity, rule: "Email is well formed"}
+  check: {function: regex_match, arguments: {column: email, regex: '^[^@\s]+@[^@\s]+\.[a-z]{2,}$'}}
+- name: C3_contact_guid_unique
+  criticality: warn
+  user_metadata: {dimension: Uniqueness, rule: "One row per contact_guid"}
+  check: {function: is_unique, arguments: {columns: [contact_guid]}}
+- name: C4_vendor_contact_has_advisor_crd
+  criticality: error
+  user_metadata: {dimension: Completeness, rule: "Vendor-sourced contacts must have an advisor CRD"}
+  check:
+    function: sql_expression
+    arguments: {expression: "source <> 'VENDOR' OR advisor_crd IS NOT NULL", msg: "vendor contact has no advisor CRD"}
+- name: C5_company_guid_not_null
+  criticality: error
+  user_metadata: {dimension: Completeness, rule: "company_guid is required"}
+  check: {function: is_not_null, arguments: {column: company_guid}}
+- name: C6_third_party_guid_format
+  criticality: error
+  user_metadata: {dimension: Validity, rule: "Third-party identifier is a lowercase UUID"}
+  check:
+    function: regex_match
+    arguments: {column: third_party_identifier_guid, regex: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'}

@@ -1,0 +1,892 @@
+{
+ "datasets": [
+  {
+   "name": "kpi",
+   "displayName": "KPIs",
+   "queryLines": [
+    "SELECT\n  (SELECT count(*) FROM main.dq_demo.planted_defects) AS planted_defects,\n  (SELECT sum(planted) FROM main.dq_demo.dq_assessment_scorecard) AS planted_rows,\n  (SELECT round(100*sum(least(dqe_caught,planted))/sum(planted),1) FROM main.dq_demo.dq_assessment_scorecard) AS dqe_recall_pct,\n  (SELECT round(100*sum(dqx_detected)/sum(planted),1) FROM main.dq_demo.dq_assessment_scorecard) AS dqx_recall_pct,\n  (SELECT count(*) FROM main.dq_demo.dq_assessment_scorecard WHERE dqe_row_identity) AS dqe_rules_with_row_identity,\n  (SELECT count(*) FROM main.dq_demo.dq_assessment_scorecard) AS rules_tested"
+   ]
+  },
+  {
+   "name": "scorecard",
+   "displayName": "Scorecard",
+   "queryLines": [
+    "SELECT rule_id, table_name, defect, planted, dqe_caught, dqe_mechanism, dqe_row_identity, dqx_detected, dqx_false_positives, dqe_recall_pct, dqx_recall_pct FROM main.dq_demo.dq_assessment_scorecard ORDER BY table_name, rule_id"
+   ]
+  },
+  {
+   "name": "recall_long",
+   "displayName": "Recall by rule",
+   "queryLines": [
+    "SELECT rule_id, 'DQE' AS framework, least(dqe_caught, planted) AS caught FROM main.dq_demo.dq_assessment_scorecard UNION ALL SELECT rule_id, 'DQX', dqx_detected FROM main.dq_demo.dq_assessment_scorecard UNION ALL SELECT rule_id, 'Planted', planted FROM main.dq_demo.dq_assessment_scorecard"
+   ]
+  },
+  {
+   "name": "dqx_results",
+   "displayName": "DQX results",
+   "queryLines": [
+    "SELECT table_name, rule_id, check_name, criticality, failed_rows, failed_pct, sample_message FROM main.dq_demo.dqx_results_summary ORDER BY table_name, rule_id"
+   ]
+  },
+  {
+   "name": "dqe_results",
+   "displayName": "DQE event log",
+   "queryLines": [
+    "SELECT dataset, expectation, rule_id, passed_records, failed_records FROM main.dq_demo.dqe_expectation_results ORDER BY dataset, expectation"
+   ]
+  },
+  {
+   "name": "mapping",
+   "displayName": "Rule pattern mapping",
+   "queryLines": [
+    "SELECT rule_pattern, dimension, dqe_support, dqx_support, dqx_check, recommended, note FROM main.dq_demo.rule_pattern_mapping"
+   ]
+  },
+  {
+   "name": "mapping_summary",
+   "displayName": "Mapping summary",
+   "queryLines": [
+    "SELECT recommended, count(*) AS rules FROM main.dq_demo.rule_pattern_mapping GROUP BY recommended"
+   ]
+  },
+  {
+   "name": "quarantine",
+   "displayName": "DQX quarantine sample",
+   "queryLines": [
+    "SELECT record_id, contact_guid, sales_activity_date, activity_type, mtg_flag, to_json(transform(_errors, e -> e.name)) AS failed_checks, to_json(transform(_errors, e -> e.message)) AS messages FROM main.dq_demo.dqx_quarantine_activities LIMIT 200"
+   ]
+  }
+ ],
+ "pages": [
+  {
+   "name": "overview",
+   "displayName": "Assessment",
+   "layout": [
+    {
+     "widget": {
+      "name": "t1",
+      "multilineTextboxSpec": {
+       "lines": [
+        "# DQE vs DQX \u2014 data quality assessment\nSame synthetic data, same rules, planted defects as ground truth. **Row identity** = the framework tells you *which* rows failed, not just how many."
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 0,
+      "width": 6,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "k1",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "kpi",
+         "fields": [
+          {
+           "name": "planted_rows",
+           "expression": "`planted_rows`"
+          }
+         ],
+         "disaggregated": true
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "planted_rows",
+         "displayName": "Planted defects"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Planted defects"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 2,
+      "width": 1,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k2",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "kpi",
+         "fields": [
+          {
+           "name": "rules_tested",
+           "expression": "`rules_tested`"
+          }
+         ],
+         "disaggregated": true
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "rules_tested",
+         "displayName": "Rule types tested"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Rule types tested"
+       }
+      }
+     },
+     "position": {
+      "x": 1,
+      "y": 2,
+      "width": 1,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k3",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "kpi",
+         "fields": [
+          {
+           "name": "dqe_recall_pct",
+           "expression": "`dqe_recall_pct`"
+          }
+         ],
+         "disaggregated": true
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "dqe_recall_pct",
+         "displayName": "DQE recall %"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "DQE recall %"
+       }
+      }
+     },
+     "position": {
+      "x": 2,
+      "y": 2,
+      "width": 1,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k4",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "kpi",
+         "fields": [
+          {
+           "name": "dqx_recall_pct",
+           "expression": "`dqx_recall_pct`"
+          }
+         ],
+         "disaggregated": true
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "dqx_recall_pct",
+         "displayName": "DQX recall %"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "DQX recall %"
+       }
+      }
+     },
+     "position": {
+      "x": 3,
+      "y": 2,
+      "width": 1,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "k5",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "kpi",
+         "fields": [
+          {
+           "name": "dqe_rules_with_row_identity",
+           "expression": "`dqe_rules_with_row_identity`"
+          }
+         ],
+         "disaggregated": true
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "counter",
+       "encodings": {
+        "value": {
+         "fieldName": "dqe_rules_with_row_identity",
+         "displayName": "DQE rules with row identity"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "DQE rules with row identity"
+       }
+      }
+     },
+     "position": {
+      "x": 4,
+      "y": 2,
+      "width": 2,
+      "height": 3
+     }
+    },
+    {
+     "widget": {
+      "name": "recall_bar",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "recall_long",
+         "fields": [
+          {
+           "name": "rule_id",
+           "expression": "`rule_id`"
+          },
+          {
+           "name": "framework",
+           "expression": "`framework`"
+          },
+          {
+           "name": "sum(caught)",
+           "expression": "SUM(`caught`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "bar",
+       "encodings": {
+        "x": {
+         "fieldName": "rule_id",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "Rule"
+        },
+        "y": {
+         "fieldName": "sum(caught)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Defects"
+        },
+        "color": {
+         "fieldName": "framework",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "Framework"
+        }
+       },
+       "mark": {
+        "layout": "group"
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Defects caught per rule: planted vs DQE vs DQX"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 6,
+      "width": 6,
+      "height": 7
+     }
+    },
+    {
+     "widget": {
+      "name": "score",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "scorecard",
+         "fields": [
+          {
+           "name": "rule_id",
+           "expression": "`rule_id`"
+          },
+          {
+           "name": "table_name",
+           "expression": "`table_name`"
+          },
+          {
+           "name": "defect",
+           "expression": "`defect`"
+          },
+          {
+           "name": "planted",
+           "expression": "`planted`"
+          },
+          {
+           "name": "dqe_caught",
+           "expression": "`dqe_caught`"
+          },
+          {
+           "name": "dqe_mechanism",
+           "expression": "`dqe_mechanism`"
+          },
+          {
+           "name": "dqe_row_identity",
+           "expression": "`dqe_row_identity`"
+          },
+          {
+           "name": "dqx_detected",
+           "expression": "`dqx_detected`"
+          },
+          {
+           "name": "dqx_false_positives",
+           "expression": "`dqx_false_positives`"
+          }
+         ],
+         "disaggregated": true
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "table",
+       "encodings": {
+        "columns": [
+         {
+          "fieldName": "rule_id",
+          "displayName": "rule_id"
+         },
+         {
+          "fieldName": "table_name",
+          "displayName": "table_name"
+         },
+         {
+          "fieldName": "defect",
+          "displayName": "defect"
+         },
+         {
+          "fieldName": "planted",
+          "displayName": "planted"
+         },
+         {
+          "fieldName": "dqe_caught",
+          "displayName": "dqe_caught"
+         },
+         {
+          "fieldName": "dqe_mechanism",
+          "displayName": "dqe_mechanism"
+         },
+         {
+          "fieldName": "dqe_row_identity",
+          "displayName": "dqe_row_identity"
+         },
+         {
+          "fieldName": "dqx_detected",
+          "displayName": "dqx_detected"
+         },
+         {
+          "fieldName": "dqx_false_positives",
+          "displayName": "dqx_false_positives"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Detection scorecard"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 13,
+      "width": 6,
+      "height": 9
+     }
+    }
+   ]
+  },
+  {
+   "name": "results",
+   "displayName": "DQ results",
+   "layout": [
+    {
+     "widget": {
+      "name": "t2",
+      "multilineTextboxSpec": {
+       "lines": [
+        "# Data quality results\nDQX results summary and SDP expectation metrics from the UC-published pipeline event log."
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 0,
+      "width": 6,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "dqx",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "dqx_results",
+         "fields": [
+          {
+           "name": "table_name",
+           "expression": "`table_name`"
+          },
+          {
+           "name": "rule_id",
+           "expression": "`rule_id`"
+          },
+          {
+           "name": "check_name",
+           "expression": "`check_name`"
+          },
+          {
+           "name": "criticality",
+           "expression": "`criticality`"
+          },
+          {
+           "name": "failed_rows",
+           "expression": "`failed_rows`"
+          },
+          {
+           "name": "failed_pct",
+           "expression": "`failed_pct`"
+          },
+          {
+           "name": "sample_message",
+           "expression": "`sample_message`"
+          }
+         ],
+         "disaggregated": true
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "table",
+       "encodings": {
+        "columns": [
+         {
+          "fieldName": "table_name",
+          "displayName": "table_name"
+         },
+         {
+          "fieldName": "rule_id",
+          "displayName": "rule_id"
+         },
+         {
+          "fieldName": "check_name",
+          "displayName": "check_name"
+         },
+         {
+          "fieldName": "criticality",
+          "displayName": "criticality"
+         },
+         {
+          "fieldName": "failed_rows",
+          "displayName": "failed_rows"
+         },
+         {
+          "fieldName": "failed_pct",
+          "displayName": "failed_pct"
+         },
+         {
+          "fieldName": "sample_message",
+          "displayName": "sample_message"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "DQX results by check"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 2,
+      "width": 6,
+      "height": 7
+     }
+    },
+    {
+     "widget": {
+      "name": "dqe",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "dqe_results",
+         "fields": [
+          {
+           "name": "dataset",
+           "expression": "`dataset`"
+          },
+          {
+           "name": "expectation",
+           "expression": "`expectation`"
+          },
+          {
+           "name": "passed_records",
+           "expression": "`passed_records`"
+          },
+          {
+           "name": "failed_records",
+           "expression": "`failed_records`"
+          }
+         ],
+         "disaggregated": true
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "table",
+       "encodings": {
+        "columns": [
+         {
+          "fieldName": "dataset",
+          "displayName": "dataset"
+         },
+         {
+          "fieldName": "expectation",
+          "displayName": "expectation"
+         },
+         {
+          "fieldName": "passed_records",
+          "displayName": "passed_records"
+         },
+         {
+          "fieldName": "failed_records",
+          "displayName": "failed_records"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "DQE expectations (event log)"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 9,
+      "width": 6,
+      "height": 7
+     }
+    },
+    {
+     "widget": {
+      "name": "q",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "quarantine",
+         "fields": [
+          {
+           "name": "record_id",
+           "expression": "`record_id`"
+          },
+          {
+           "name": "contact_guid",
+           "expression": "`contact_guid`"
+          },
+          {
+           "name": "sales_activity_date",
+           "expression": "`sales_activity_date`"
+          },
+          {
+           "name": "activity_type",
+           "expression": "`activity_type`"
+          },
+          {
+           "name": "mtg_flag",
+           "expression": "`mtg_flag`"
+          },
+          {
+           "name": "failed_checks",
+           "expression": "`failed_checks`"
+          },
+          {
+           "name": "messages",
+           "expression": "`messages`"
+          }
+         ],
+         "disaggregated": true
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "table",
+       "encodings": {
+        "columns": [
+         {
+          "fieldName": "record_id",
+          "displayName": "record_id"
+         },
+         {
+          "fieldName": "contact_guid",
+          "displayName": "contact_guid"
+         },
+         {
+          "fieldName": "sales_activity_date",
+          "displayName": "sales_activity_date"
+         },
+         {
+          "fieldName": "activity_type",
+          "displayName": "activity_type"
+         },
+         {
+          "fieldName": "mtg_flag",
+          "displayName": "mtg_flag"
+         },
+         {
+          "fieldName": "failed_checks",
+          "displayName": "failed_checks"
+         },
+         {
+          "fieldName": "messages",
+          "displayName": "messages"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "DQX quarantine \u2014 activities (per-row reasons)"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 16,
+      "width": 6,
+      "height": 8
+     }
+    }
+   ]
+  },
+  {
+   "name": "mapping",
+   "displayName": "Rule pattern mapping",
+   "layout": [
+    {
+     "widget": {
+      "name": "t3",
+      "multilineTextboxSpec": {
+       "lines": [
+        "# Common rule patterns \u2192 framework\nNative = expressed directly; Workaround = possible via extra MVs/joins with count-only results."
+       ]
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 0,
+      "width": 6,
+      "height": 2
+     }
+    },
+    {
+     "widget": {
+      "name": "mapping_pie",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "mapping_summary",
+         "fields": [
+          {
+           "name": "recommended",
+           "expression": "`recommended`"
+          },
+          {
+           "name": "sum(rules)",
+           "expression": "SUM(`rules`)"
+          }
+         ],
+         "disaggregated": false
+        }
+       }
+      ],
+      "spec": {
+       "version": 3,
+       "widgetType": "pie",
+       "encodings": {
+        "angle": {
+         "fieldName": "sum(rules)",
+         "scale": {
+          "type": "quantitative"
+         },
+         "displayName": "Rules"
+        },
+        "color": {
+         "fieldName": "recommended",
+         "scale": {
+          "type": "categorical"
+         },
+         "displayName": "Recommended"
+        }
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Rule patterns: recommended framework"
+       }
+      }
+     },
+     "position": {
+      "x": 0,
+      "y": 2,
+      "width": 2,
+      "height": 8
+     }
+    },
+    {
+     "widget": {
+      "name": "map",
+      "queries": [
+       {
+        "name": "main_query",
+        "query": {
+         "datasetName": "mapping",
+         "fields": [
+          {
+           "name": "rule_pattern",
+           "expression": "`rule_pattern`"
+          },
+          {
+           "name": "dimension",
+           "expression": "`dimension`"
+          },
+          {
+           "name": "dqe_support",
+           "expression": "`dqe_support`"
+          },
+          {
+           "name": "dqx_support",
+           "expression": "`dqx_support`"
+          },
+          {
+           "name": "dqx_check",
+           "expression": "`dqx_check`"
+          },
+          {
+           "name": "recommended",
+           "expression": "`recommended`"
+          },
+          {
+           "name": "note",
+           "expression": "`note`"
+          }
+         ],
+         "disaggregated": true
+        }
+       }
+      ],
+      "spec": {
+       "version": 2,
+       "widgetType": "table",
+       "encodings": {
+        "columns": [
+         {
+          "fieldName": "rule_pattern",
+          "displayName": "rule_pattern"
+         },
+         {
+          "fieldName": "dimension",
+          "displayName": "dimension"
+         },
+         {
+          "fieldName": "dqe_support",
+          "displayName": "dqe_support"
+         },
+         {
+          "fieldName": "dqx_support",
+          "displayName": "dqx_support"
+         },
+         {
+          "fieldName": "dqx_check",
+          "displayName": "dqx_check"
+         },
+         {
+          "fieldName": "recommended",
+          "displayName": "recommended"
+         },
+         {
+          "fieldName": "note",
+          "displayName": "note"
+         }
+        ]
+       },
+       "frame": {
+        "showTitle": true,
+        "title": "Pattern-by-pattern mapping"
+       }
+      }
+     },
+     "position": {
+      "x": 2,
+      "y": 2,
+      "width": 4,
+      "height": 14
+     }
+    }
+   ]
+  }
+ ]
+}

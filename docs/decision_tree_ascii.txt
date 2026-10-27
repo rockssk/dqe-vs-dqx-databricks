@@ -1,0 +1,31 @@
+START: one data quality rule
+│
+├─ 1. Is it about the TABLE, not the row content?
+│     (did it refresh on time, did the row volume drop or spike)
+│     └─ YES ──► DQM anomaly detection (no rule to write)
+│                + DQX is_data_fresh if you need a hard SLA on a file or manifest (e.g. 12h)
+│
+├─ 2. Is it a schema problem at ingestion?
+│     (wrong data type, unexpected or missing column)
+│     └─ YES ──► Auto Loader schema hints + rescued data column (_rescued_data),
+│                then a DQE drop rule on _rescued_data IS NULL
+│                (tables not loaded by Auto Loader: DQX has_valid_schema)
+│
+├─ 3. Can it be decided from ONE row on its own?
+│     (not null, regex/format, range, allowed values, IF a THEN b)
+│     ├─ YES, and the data flows through an SDP pipeline:
+│     │     ├─ the bad row must stop the load ─────────► DQE  ON VIOLATION FAIL UPDATE
+│     │     ├─ the bad row must be kept out of silver ─► DQE  ON VIOLATION DROP ROW + quarantine table
+│     │     └─ just measure it ─────────────────────────► DQE  warn
+│     │          (need to see WHICH rows broke a warn rule? use DQX, criticality: warn)
+│     └─ YES, but outside SDP (job, notebook, existing table) ──► DQX row-level check
+│
+├─ 4. Does it need OTHER ROWS of the same dataset?
+│     (uniqueness / primary key, counts or sums per group, spike vs. history, outliers)
+│     └─ YES ──► DQX  is_unique · is_aggr_* · sql_query · has_no_aggr_outliers
+│                (DQE only through an extra MV + expectation, and it reports a count only)
+│
+└─ 5. Does it need ANOTHER TABLE or SYSTEM?
+      (FK / lookup, raw→silver→gold rollup, row count vs. source, matches another system)
+      ├─ the lookup is already joined in the pipeline ──► DQE on the joined column
+      └─ otherwise ─────────────────────────────────────► DQX  foreign_key · compare_datasets · sql_query

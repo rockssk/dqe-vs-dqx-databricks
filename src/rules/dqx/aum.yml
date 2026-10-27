@@ -1,0 +1,27 @@
+- name: F1_no_rescued_data
+  criticality: error
+  user_metadata: {dimension: Validity, rule: "Values match the expected schema"}
+  check: {function: is_null, arguments: {column: _rescued_data}}
+- name: F2_advisor_id_not_null
+  criticality: error
+  user_metadata: {dimension: Completeness, rule: "advisor_id is required"}
+  check: {function: is_not_null, arguments: {column: advisor_id}}
+- name: F4_advisor_month_unique
+  criticality: warn
+  user_metadata: {dimension: Uniqueness, rule: "One row per advisor and month"}
+  check: {function: is_unique, arguments: {columns: [advisor_id, month]}}
+- name: F3_aum_within_3x_history
+  criticality: warn
+  user_metadata: {dimension: Accuracy, rule: "Advisor AUM within 3x its trailing 12-month average"}
+  check:
+    function: sql_query
+    arguments:
+      query: |
+        SELECT record_id,
+               coalesce(advisor_id IS NOT NULL AND aum > 3 * avg(aum) OVER (PARTITION BY advisor_id ORDER BY month
+                        ROWS BETWEEN 12 PRECEDING AND 1 PRECEDING), false) AS violation
+        FROM {{ input_view }}
+      input_placeholder: input_view
+      merge_columns: [record_id]
+      condition_column: violation
+      msg: "advisor AUM more than 3x its trailing 12-month average"

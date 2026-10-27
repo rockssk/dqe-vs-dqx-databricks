@@ -1,0 +1,96 @@
+bundle:
+  name: dq_dqe_vs_dqx_demo
+
+variables:
+  catalog:
+    default: main
+  schema:
+    default: dq_demo
+
+targets:
+  dev:
+    default: true
+
+resources:
+  schemas:
+    dq_schema:
+      catalog_name: ${var.catalog}
+      name: ${var.schema}
+      comment: "DQE vs DQX data quality demo"
+
+  volumes:
+    raw:
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.dq_schema.name}
+      name: raw
+      volume_type: MANAGED
+
+  pipelines:
+    dqe_pipeline:
+      name: dqe-expectations-demo
+      catalog: ${var.catalog}
+      schema: ${resources.schemas.dq_schema.name}
+      serverless: true
+      development: true
+      libraries:
+        - file:
+            path: ./src/dqe_pipeline/dqe_pipeline.py
+      configuration:
+        raw_path: /Volumes/${var.catalog}/${var.schema}/raw
+        rules_path: ${workspace.file_path}/src/rules/dqe_rules.json
+      event_log:
+        catalog: ${var.catalog}
+        schema: ${var.schema}
+        name: dqe_event_log
+
+    dqx_sdp_pipeline:
+      name: dqx-in-sdp-demo
+      catalog: ${var.catalog}
+      schema: ${resources.schemas.dq_schema.name}
+      serverless: true
+      development: true
+      environment:
+        dependencies:
+          - databricks-labs-dqx
+      libraries:
+        - file:
+            path: ./src/dqx_in_sdp/dqx_sdp_pipeline.py
+      configuration:
+        source_schema: ${var.catalog}.${var.schema}
+        checks_table: ${var.catalog}.${var.schema}.dqx_checks
+      event_log:
+        catalog: ${var.catalog}
+        schema: ${var.schema}
+        name: dqx_sdp_event_log
+
+  jobs:
+    dq_demo:
+      name: dq-demo (DQE vs DQX)
+      tasks:
+        - task_key: generate_data
+          notebook_task:
+            notebook_path: ./src/00_generate_data.py
+            base_parameters: {catalog: "${var.catalog}", schema: "${var.schema}"}
+        - task_key: dqe_pipeline
+          depends_on: [{task_key: generate_data}]
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.dqe_pipeline.id}
+            full_refresh: true
+        - task_key: dqx_checks
+          depends_on: [{task_key: dqe_pipeline}]
+          notebook_task:
+            notebook_path: ./src/02_dqx_demo.py
+            base_parameters:
+              catalog: "${var.catalog}"
+              schema: "${var.schema}"
+              rules_dir: "${workspace.file_path}/src/rules/dqx"
+        - task_key: dqx_in_sdp
+          depends_on: [{task_key: dqx_checks}]
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.dqx_sdp_pipeline.id}
+            full_refresh: true
+        - task_key: assessment
+          depends_on: [{task_key: dqx_checks}]
+          notebook_task:
+            notebook_path: ./src/03_assessment.py
+            base_parameters: {catalog: "${var.catalog}", schema: "${var.schema}"}
