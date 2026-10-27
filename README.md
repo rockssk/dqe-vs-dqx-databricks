@@ -43,7 +43,7 @@ databricks bundle run dq_demo --var catalog=<your_catalog> --var schema=dq_demo
 ```
 Set your workspace with `DATABRICKS_HOST`/profile, or add a `workspace:` block under `targets.dev` in `databricks.yml`.
 
-The dashboard is optional. `dashboards/dq_assessment.lvdash.json` queries `main.dq_demo`; replace that with your catalog and schema, then import the file in the workspace UI (Dashboards → Import) or create it with `databricks lakeview create`.
+`bundle deploy` also creates and publishes the AI/BI dashboard **DQ: DQE vs DQX assessment** (`dashboards/dq_assessment.lvdash.json`). Its queries use bare table names and pick up your `catalog` / `schema` variables through `dataset_catalog` / `dataset_schema`. It runs on the warehouse named "Serverless Starter Warehouse"; use `--var warehouse_id=<id>` to pick a different one. It shows data once the job has run.
 
 ## Word version of the FAQ
 

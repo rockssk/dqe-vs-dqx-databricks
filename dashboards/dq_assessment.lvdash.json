@@ -4,56 +4,56 @@
    "name": "kpi",
    "displayName": "KPIs",
    "queryLines": [
-    "SELECT\n  (SELECT count(*) FROM main.dq_demo.planted_defects) AS planted_defects,\n  (SELECT sum(planted) FROM main.dq_demo.dq_assessment_scorecard) AS planted_rows,\n  (SELECT round(100*sum(least(dqe_caught,planted))/sum(planted),1) FROM main.dq_demo.dq_assessment_scorecard) AS dqe_recall_pct,\n  (SELECT round(100*sum(dqx_detected)/sum(planted),1) FROM main.dq_demo.dq_assessment_scorecard) AS dqx_recall_pct,\n  (SELECT count(*) FROM main.dq_demo.dq_assessment_scorecard WHERE dqe_row_identity) AS dqe_rules_with_row_identity,\n  (SELECT count(*) FROM main.dq_demo.dq_assessment_scorecard) AS rules_tested"
+    "SELECT\n  (SELECT count(*) FROM planted_defects) AS planted_defects,\n  (SELECT sum(planted) FROM dq_assessment_scorecard) AS planted_rows,\n  (SELECT round(100*sum(least(dqe_caught,planted))/sum(planted),1) FROM dq_assessment_scorecard) AS dqe_recall_pct,\n  (SELECT round(100*sum(dqx_detected)/sum(planted),1) FROM dq_assessment_scorecard) AS dqx_recall_pct,\n  (SELECT count(*) FROM dq_assessment_scorecard WHERE dqe_row_identity) AS dqe_rules_with_row_identity,\n  (SELECT count(*) FROM dq_assessment_scorecard) AS rules_tested"
    ]
   },
   {
    "name": "scorecard",
    "displayName": "Scorecard",
    "queryLines": [
-    "SELECT rule_id, table_name, defect, planted, dqe_caught, dqe_mechanism, dqe_row_identity, dqx_detected, dqx_false_positives, dqe_recall_pct, dqx_recall_pct FROM main.dq_demo.dq_assessment_scorecard ORDER BY table_name, rule_id"
+    "SELECT rule_id, table_name, defect, planted, dqe_caught, dqe_mechanism, dqe_row_identity, dqx_detected, dqx_false_positives, dqe_recall_pct, dqx_recall_pct FROM dq_assessment_scorecard ORDER BY table_name, rule_id"
    ]
   },
   {
    "name": "recall_long",
    "displayName": "Recall by rule",
    "queryLines": [
-    "SELECT rule_id, 'DQE' AS framework, least(dqe_caught, planted) AS caught FROM main.dq_demo.dq_assessment_scorecard UNION ALL SELECT rule_id, 'DQX', dqx_detected FROM main.dq_demo.dq_assessment_scorecard UNION ALL SELECT rule_id, 'Planted', planted FROM main.dq_demo.dq_assessment_scorecard"
+    "SELECT rule_id, 'DQE' AS framework, least(dqe_caught, planted) AS caught FROM dq_assessment_scorecard UNION ALL SELECT rule_id, 'DQX', dqx_detected FROM dq_assessment_scorecard UNION ALL SELECT rule_id, 'Planted', planted FROM dq_assessment_scorecard"
    ]
   },
   {
    "name": "dqx_results",
    "displayName": "DQX results",
    "queryLines": [
-    "SELECT table_name, rule_id, check_name, criticality, failed_rows, failed_pct, sample_message FROM main.dq_demo.dqx_results_summary ORDER BY table_name, rule_id"
+    "SELECT table_name, rule_id, check_name, criticality, failed_rows, failed_pct, sample_message FROM dqx_results_summary ORDER BY table_name, rule_id"
    ]
   },
   {
    "name": "dqe_results",
    "displayName": "DQE event log",
    "queryLines": [
-    "SELECT dataset, expectation, rule_id, passed_records, failed_records FROM main.dq_demo.dqe_expectation_results ORDER BY dataset, expectation"
+    "SELECT dataset, expectation, rule_id, passed_records, failed_records FROM dqe_expectation_results ORDER BY dataset, expectation"
    ]
   },
   {
    "name": "mapping",
    "displayName": "Rule pattern mapping",
    "queryLines": [
-    "SELECT rule_pattern, dimension, dqe_support, dqx_support, dqx_check, recommended, note FROM main.dq_demo.rule_pattern_mapping"
+    "SELECT rule_pattern, dimension, dqe_support, dqx_support, dqx_check, recommended, note FROM rule_pattern_mapping"
    ]
   },
   {
    "name": "mapping_summary",
    "displayName": "Mapping summary",
    "queryLines": [
-    "SELECT recommended, count(*) AS rules FROM main.dq_demo.rule_pattern_mapping GROUP BY recommended"
+    "SELECT recommended, count(*) AS rules FROM rule_pattern_mapping GROUP BY recommended"
    ]
   },
   {
    "name": "quarantine",
    "displayName": "DQX quarantine sample",
    "queryLines": [
-    "SELECT record_id, contact_guid, sales_activity_date, activity_type, mtg_flag, to_json(transform(_errors, e -> e.name)) AS failed_checks, to_json(transform(_errors, e -> e.message)) AS messages FROM main.dq_demo.dqx_quarantine_activities LIMIT 200"
+    "SELECT record_id, contact_guid, sales_activity_date, activity_type, mtg_flag, to_json(transform(_errors, e -> e.name)) AS failed_checks, to_json(transform(_errors, e -> e.message)) AS messages FROM dqx_quarantine_activities LIMIT 200"
    ]
   }
  ],
